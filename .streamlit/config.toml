@@ -1,7 +1,8 @@
 [theme]
 base = "dark"
-primaryColor = "#00d0b3"
-backgroundColor = "#1e1e2f"
-secondaryBackgroundColor = "#2c2c3c"
-textColor = "#ffffff"
+primaryColor = "#00d0b3"                   # Soft teal (buttons, highlights)
+backgroundColor = "#1e1e2f"                # Dark navy background
+secondaryBackgroundColor = "#2c2c3c"       # Sidebar + widget backgrounds
+textColor = "#ffffff"                      # Clean white text
 font = "sans serif"
+
