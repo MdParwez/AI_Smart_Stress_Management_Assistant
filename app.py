@@ -10,27 +10,20 @@ st.set_page_config(page_title="Stress Management AI", page_icon="🧘", layout="
 st.title("🧠 Stress Management Assistant")
 st.markdown("Describe your stress, track your feelings, and get AI-powered support.")
 
-# --- Load API Key from secrets ---
+# --- Load API Key ---
 co = cohere.Client(st.secrets["api_keys"]["cohere"])
+
+# --- Session State Initialization ---
+if "stress_level" not in st.session_state:
+    st.session_state.stress_level = None
+if "quotes" not in st.session_state:
+    st.session_state.quotes = []
+if "story" not in st.session_state:
+    st.session_state.story = ""
 
 # --- Constants ---
 MOODS = ["😌 Calm", "😐 Meh", "😫 Stressed", "😭 Overwhelmed"]
 DATA_FILE = "stress_logs.csv"
-
-# --- Affirmation of the Day ---
-affirmations = [
-    "You are doing the best you can. And that’s enough.",
-    "Every breath you take is a step toward peace.",
-    "You are stronger than you think.",
-    "One small step at a time.",
-    "Progress, not perfection.",
-]
-today = datetime.now().day
-st.info(f"🌞 Daily Affirmation: *{affirmations[today % len(affirmations)]}*")
-
-# --- Mood + Emoji Selection ---
-mood = st.radio("🧠 Select your current mood:", MOODS)
-
 emotions = {
     "😄 Happy": "happy",
     "😔 Sad": "sad",
@@ -41,19 +34,25 @@ emotions = {
     "😇 Grateful": "grateful",
     "😕 Confused": "confused",
 }
-selected_emotions = st.multiselect("🌈 Select how you feel using emojis:", list(emotions.keys()))
+
+# --- Affirmation ---
+affirmations = [
+    "You are doing the best you can. And that’s enough.",
+    "Every breath you take is a step toward peace.",
+    "You are stronger than you think.",
+    "One small step at a time.",
+    "Progress, not perfection.",
+]
+today = datetime.now().day
+st.info(f"🌞 Daily Affirmation: *{affirmations[today % len(affirmations)]}*")
+
+# --- Mood & Input ---
+mood = st.radio("📊 What's your overall mood today?", MOODS)
+selected_emotions = st.multiselect("🌈 What specific emotions are you feeling right now?", list(emotions.keys()))
 emotion_tags = ", ".join([emotions[e] for e in selected_emotions])
 
-# --- Text Inputs ---
 user_input = st.text_area("📝 How are you feeling today?", height=150)
-
-# --- Guided Journaling ---
-with st.expander("📓 Need Help? Guided Prompts"):
-    st.markdown("- What triggered your stress today?")
-    st.markdown("- What helped you feel a bit better?")
-    st.markdown("- What would you say to a friend feeling this way?")
-
-journal = st.text_area("✍️ Optional journaling space", height=100)
+journal = st.text_area("📓 Optional journaling space", height=100)
 
 # --- Classify Stress ---
 def classify_stress(user_input):
@@ -80,21 +79,27 @@ Stress Level:"""
     level = response.generations[0].text.strip().lower()
     return level if level in ["low", "medium", "high"] else "medium"
 
-# --- Quote Generator (Fixed for Repetition) ---
+# --- Generate Quotes ---
 def generate_quotes(level):
-    prompt = f"""Give me 5 unique, fresh, and motivational quotes for someone dealing with {level} level stress.
-Each quote should be short (1-2 lines), emotionally uplifting, and appear on a new line."""
+    prompt = {
+        "low": "Give me 2 short and light motivational quotes for someone feeling slightly stressed.",
+        "medium": "Give 2 strong motivational quotes for someone feeling overwhelmed with work or responsibilities.",
+        "high": "Give 2 powerful quotes for someone going through serious emotional stress or burnout.",
+    }[level]
 
     response = co.generate(
         model="command-r-plus",
         prompt=prompt,
-        max_tokens=200,
-        temperature=0.95,
+        max_tokens=100,
+        temperature=0.9,
     )
-    all_quotes = [q.strip() for q in response.generations[0].text.strip().split("\n") if q.strip()]
-    return random.sample(all_quotes, min(2, len(all_quotes)))
+    return [line.strip() for line in response.generations[0].text.strip().split("\n") if line.strip()]
 
-# --- AI Success Story Generator ---
+# --- YouTube Link ---
+def search_youtube_link(query):
+    return f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
+
+# --- AI Success Story ---
 def get_success_story(user_input):
     prompt = f"""
 The following person is going through stress: "{user_input}"
@@ -104,37 +109,30 @@ Make it about 150–200 words, and describe how they felt, what small steps they
 End the story with an uplifting thought that brings peace and hope.
 Do not mention it's fictional or written by AI.
 """
-
     try:
         response = co.generate(
             model="command-r-plus",
             prompt=prompt,
             max_tokens=250,
-            temperature=0.8,
+            temperature=0.7,
         )
         return response.generations[0].text.strip()
-    except Exception:
-        fallback_stories = [
-            "💼 J.K. Rowling battled depression while on welfare and went on to become a world-famous author.",
-            "🧠 Olympic swimmer Michael Phelps faced anxiety and depression but found healing through therapy.",
-            "🛠️ Steve Jobs was fired from Apple, the company he founded. He turned failure into fuel for reinvention."
-        ]
-        return random.choice(fallback_stories)
+    except:
+        return random.choice([
+            "💼 *J.K. Rowling* battled depression while on welfare and went on to become a world-famous author.",
+            "🧠 Olympic swimmer *Michael Phelps* faced anxiety and depression but found healing through therapy.",
+            "🛠️ *Steve Jobs* was fired from Apple, the company he founded. He turned failure into fuel for reinvention."
+        ])
 
-# --- YouTube Search Links ---
-def search_youtube_link(query):
-    return f"https://www.youtube.com/results?search_query={query.replace(' ', '+')}"
-
-# --- Activities ---
+# --- Suggestions ---
 def suggest_activities(level):
-    if level == "low":
-        return ["🌳 Take a short walk", "🎧 Listen to calm music"]
-    elif level == "medium":
-        return ["🧘 Try a 5-minute meditation", "📋 Prioritize your tasks"]
-    else:
-        return ["📞 Talk to a friend or therapist", "✍️ Write in your journal or reflect"]
+    return {
+        "low": ["🌳 Take a short walk", "🎧 Listen to calm music"],
+        "medium": ["🧘 Try a 5-minute meditation", "📋 Prioritize your tasks"],
+        "high": ["📞 Talk to a friend or therapist", "✍️ Write in your journal or reflect"],
+    }[level]
 
-# --- Save Log ---
+# --- Log Entry ---
 def log_entry(date, mood, level, user_input, journal):
     row = {
         "date": date,
@@ -149,60 +147,66 @@ def log_entry(date, mood, level, user_input, journal):
     else:
         df.to_csv(DATA_FILE, index=False)
 
-# --- Support Logic ---
+# --- Analyze & Display ---
 if st.button("💡 Get Support"):
     if not user_input.strip():
         st.warning("Please describe how you're feeling.")
     else:
-        with st.spinner("Analyzing your stress level..."):
+        with st.spinner("Analyzing your stress..."):
             full_input = user_input + f"\n\n[Emotions: {emotion_tags}]" if emotion_tags else user_input
             level = classify_stress(full_input)
+
+            st.session_state.stress_level = level
+            st.session_state.quotes = generate_quotes(level)
+            st.session_state.story = get_success_story(user_input)
 
             st.success(f"🧠 Detected Stress Level: **{level.upper()}**")
             log_entry(datetime.now().strftime("%Y-%m-%d"), mood, level, user_input, journal)
 
-            st.subheader("💬 Motivational Quotes")
-            quote_placeholder = st.empty()
-            quotes = generate_quotes(level)
-            for q in quotes:
-                quote_placeholder.markdown(f"> {q}")
-            if st.button("🔁 Refresh Quotes"):
-                quotes = generate_quotes(level)
-                quote_placeholder.empty()
-                for q in quotes:
-                    quote_placeholder.markdown(f"> {q}")
+# --- Show Results (if any) ---
+if st.session_state.stress_level:
+    level = st.session_state.stress_level
 
-            st.subheader("💡 Suggested Activities")
-            for tip in suggest_activities(level):
-                st.markdown(f"- {tip}")
+    st.subheader("💬 Motivational Quotes")
+    quote_placeholder = st.empty()
+    for q in st.session_state.quotes:
+        quote_placeholder.markdown(f"> {q}")
+    if st.button("🔁 Refresh Quotes"):
+        st.session_state.quotes = generate_quotes(level)
+        quote_placeholder.empty()
+        for q in st.session_state.quotes:
+            quote_placeholder.markdown(f"> {q}")
 
-            query = {
-                "low": "relaxing music for stress relief",
-                "medium": "guided meditation for work stress",
-                "high": "motivational speech for depression"
-            }[level]
-            story_query = f"real success stories overcoming {level} stress"
+    st.subheader("💡 Suggested Activities")
+    for tip in suggest_activities(level):
+        st.markdown(f"- {tip}")
 
-            st.subheader("🎥 Explore Helpful Videos")
-            st.markdown(f"🎧 [Feel Better Videos]({search_youtube_link(query)})")
-            st.markdown(f"🌟 [Watch Real Stories]({search_youtube_link(story_query)})")
+    query = {
+        "low": "relaxing music for stress relief",
+        "medium": "guided meditation for work stress",
+        "high": "motivational speech for depression"
+    }[level]
+    story_query = f"real success stories overcoming {level} stress"
 
-            st.subheader("🌟 Real Success Story")
-            story_placeholder = st.empty()
-            story_placeholder.markdown(get_success_story(user_input))
-            if st.button("🔁 Refresh Story"):
-                story_placeholder.markdown(get_success_story(user_input))
+    st.subheader("🎥 Explore Helpful Videos")
+    st.markdown(f"🎧 [Feel Better Videos]({search_youtube_link(query)})")
+    st.markdown(f"🌟 [Watch Real Stories]({search_youtube_link(story_query)})")
 
-# --- Visualization ---
+    st.subheader("🌟 Real Success Story (Inspired by your situation)")
+    story_placeholder = st.empty()
+    story_placeholder.markdown(st.session_state.story)
+    if st.button("🔁 Refresh Story"):
+        st.session_state.story = get_success_story(user_input)
+        story_placeholder.markdown(st.session_state.story)
+
+# --- Journal Log ---
 if os.path.exists(DATA_FILE):
     st.markdown("---")
     st.subheader("📊 Your Stress Log Overview")
     df = pd.read_csv(DATA_FILE)
     df["date"] = pd.to_datetime(df["date"])
     df["stress_score"] = df["stress_level"].map({"low": 1, "medium": 2, "high": 3})
-    chart_data = df.groupby("date")["stress_score"].mean()
-    st.line_chart(chart_data)
+    st.line_chart(df.groupby("date")["stress_score"].mean())
 
     with st.expander("📜 See Full Journal Log"):
         st.dataframe(df[::-1])
-
