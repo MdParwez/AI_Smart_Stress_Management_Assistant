@@ -1,7 +1,7 @@
 [theme]
 base = "light"
-primaryColor = "#FFC107"               # Amber/Yellow (Highlight)
-backgroundColor = "#ffffff"            # White
-secondaryBackgroundColor = "#f4f9f4"   # Mint White
-textColor = "#2c3e50"                  # Dark Gray-Blue
+primaryColor = "#ff9800"
+backgroundColor = "#fdf7ec"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#2c3e50"
 font = "sans serif"
